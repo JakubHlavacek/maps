@@ -1,0 +1,281 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<title>8a.nu</title>
+	<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+	<link rel="stylesheet" href="leaflet_1.9.4.css" />
+	<script src="leaflet_1.9.4.js"></script>
+	<style>
+		.hoverWhite { background-color: #fffa; }
+		.hoverWhite:hover { background-color: #8bf; }
+		.leaflet-div-icon { border: none; }
+		.leaflet-popup-content-wrapper { border-radius: 5px; }
+		.leaflet-popup-content { margin: 4px 15px 4px 8px; }
+		.leaflet-container a.leaflet-popup-close-button { width: 20px; height: 20px; line-height: 19px; }
+		.leaflet-container a { color: revert; }
+		.leaflet-control-scale-line { margin: 0 0 5px 5px; }
+		.leaflet-tooltip { padding: 0px 2px; line-height: 14px; }
+	</style>
+</head>
+<body>
+<script src="8a.nu_2025_a.js"></script>
+<script src="8a.nu_2025_b.js"></script>
+<script>
+
+
+	// https://developer.mapy.cz/js-api/prechod-z-js-sdk-na-nove-rest-api/
+	// https://developer.mapy.cz/account/
+	// kEy71wetnevxMH0n7Eyfveb5Ad78j8CtFN0LhBSF5Yg
+	// https://github.com/Leaflet/Leaflet
+
+
+
+
+	const tempDiv = document.createElement('div');
+	function elem(s) {
+		//const tempDiv = document.createElement('div');
+		tempDiv.innerHTML = s;
+		return tempDiv.firstChild;
+	}
+	function range(n) { return Array(n).fill(0).map((_, i) => i); }
+
+
+	const gradeMap1 = "p 1 2 3a 3b 3c 4a 4b 4c 4c 5a 5a+ 5b 5b+ 5c 5c+ 6a 6a+ 6b 6b+ 6b+ 6c 6c+ 7a 7a+ 7b 7b+ 7c 7c+ 8a 8a+ 8b 8b+ 8c 8c+ 9a 9a+ 9b 9b+ 9c".split(" ");
+	const gradeMap2 = "6a 6a+ 6b 6b+ 6c 6c+ 7a 7a+ 7b 7b+ 7c 7c+ 8a 8a+ 8b 8b+ 8c 8c+ 9a".split(" ");
+
+	function spark(arr, compact, style="") {
+		const txt = "6 b c 7 b c 8 b c 9";
+		const aux = arr.map((a, i) => `<text x="${i * 5 + 3}" y="${compact ? 0 : 16}" fill="#888" dominant-baseline="hanging" text-anchor="middle" font-size="11">${txt[i]}</text>`);
+		const aux2 = arr.map((a, i) => a > 0 ? `<rect x="${i * 5 + 1}" y="${15 - a - 1}" width="4" height="${a + 1}" style="fill:#88f;"></rect>` : "");
+		return elem(`<svg width="${arr.length * 5 + 2}" height="${compact ? 15 : 26}" style="background-color: #fff;${style}">${aux.join()}${aux2.join()}</svg>`);
+	}
+	function sparkYear(arr, style = "") {
+		const txt = "1 3 5 7 9 1 ";
+		const curMonth = new Date().getMonth();
+		const aux = range(12).map(i => {
+			const bold = i >= curMonth - 1 && i <= curMonth + 1 || i === 0 && curMonth === 11;
+			return `<text x="${i * 5 + 3}" y="${16}" fill="${bold ? "#000" : "#888"}" dominant-baseline="hanging" text-anchor="middle" font-size="${bold ? 12 : 11}" ${bold ? 'font-weight="bold"' : ""}>${txt[i]}</text>`;
+		});
+		const max = Math.max(...arr);
+		const aux2 = arr.map((a, i) => a > 0 ? `<rect x="${i * 5 + 1}" y="${15 - 15 * a / max - 1}" width="4" height="${15 * a / max + 1}" style="fill:#4c7;"></rect>` : "");
+		return elem(`<svg width="${arr.length * 5 + 2}" height="${26}" style="background-color: #fff;${style}">${aux.join()}${aux2.join()}</svg>`);
+	}
+
+
+
+
+	// https://www.8a.nu/unificationAPI/collection/v1/web/map/items?south_west_latitude=-90&south_west_longitude=-180&north_east_latitude=45&north_east_longitude=180&zoom=0.00780711444711334&page_index=0&page_size=9000
+	// https://www.8a.nu/unificationAPI/collection/v1/web/map/items?south_west_latitude=45&south_west_longitude=-180&north_east_latitude=90&north_east_longitude=180&zoom=0.00780711444711334&page_index=0&page_size=9000
+	const data = { items: [...a.items, ...b.items,], };
+	delete a;
+	delete b;
+
+
+
+	const crags = data.items.filter(c => c.type === 0 && !(c.name === "Dolomites" && c.total_ascents === 520)).map(c => ({
+		name: c.name, area_name: c.area_name, latitude: c.latitude, longitude: c.longitude, ascents: c.total_ascents, routes: c.total_ascendables, category: c.category,
+		url: `https://www.8a.nu/crags/${c.category === 0 ? "sportclimbing" : "bouldering"}/${c.country_slug}/${c.slug}/`,
+		routesHist: parseGrades(c.grades), rMin: parseGradesMin(c.grades), rMax: parseGradesMax(c.grades),
+		season: c.season,	// "season":[0,0,0,0,0,0,3,0,0,0,3,0],
+	}));
+	delete data;
+	crags.sort((a, b) => a.ascents - b.ascents);
+
+	function parseGrades(grades) {
+		// "grades": { "project": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0, "9": 0, "10": 0, "11": 0, "12": 0, "13": 0, "14": 0, "15": 0, "16": 0, "17": 0, "18": 0, "19": 0, "20": 0, "21": 1, "22": 1, "23": 0, "24": 0, "25": 0, "26": 0, "27": 0, "28": 0, "29": 0, "30": 1, "31": 0, "32": 0, "33": 0, "34": 0, "35": 0, "36": 0, "37": 0, "38": 0, "39": 0 }
+		// 6a .. 16, 9a .. 35;		6b+ .. 19, 6B+ .. 20
+		return [...range(19 - 16).map(i => grades[i + 16]), grades[19] + grades[20], ...range(36 - 21).map(i => grades[i + 21]),];
+	}
+	function parseGradesMin(grades) {
+		for (let i = 1; i <= 39; i++)
+			if (grades[i] > 0)
+				return gradeMap1[i];
+		return "-";
+	}
+	function parseGradesMax(grades) {
+		for (let i = 39; i >= 1; i--)
+			if (grades[i] > 0)
+				return gradeMap1[i];
+		return "-";
+	}
+
+
+
+
+
+	const divMap = elem('<div style="position: absolute; top: 0px; bottom: 0px; left: 0px; right: 0px;"></div>');
+	document.body.appendChild(divMap);
+	document.addEventListener("keydown", e => { if (e.code === "Escape") map.closePopup(); });
+
+
+
+
+	const API_KEY = "kEy71wetnevxMH0n7Eyfveb5Ad78j8CtFN0LhBSF5Yg";
+
+	const map = L.map(divMap, { center: [50, 14,], zoom: 5, /*zoomSnap: 0.25, zoomDelta: 0.5, wheelPxPerZoomLevel: 120,*/ });	// https://leafletjs.com/reference.html#map
+	L.control.scale({ maxWidth: 300, imperial: false, }).addTo(map);
+	map.getContainer().style.cursor = "default";
+
+	// logo mapy.cz
+	const divMapyCzLogo = elem('<div style="margin: 0 4px 0px 0;"><a href="https://mapy.cz/zakladni?x=11.3339831&y=49.7784772&z=11" target="_blank"><img src="https://api.mapy.cz/img/api/logo.svg" /></a></div>');
+	new (L.Control.extend({ onAdd: () => divMapyCzLogo, }))({ position: "bottomright", }).addTo(map);
+
+	// vrstvy
+	const tileLayers = {
+		Basic: L.tileLayer(`https://api.mapy.cz/v1/maptiles/basic/256/{z}/{x}/{y}?apikey=${API_KEY}&lang=en`, { minZoom: 2, maxZoom: 19, attribution: '<a href="https://api.mapy.cz/copyright" target="_blank">&copy; Seznam.cz a.s. a další</a>', }),
+		Aerial: L.tileLayer(`https://api.mapy.cz/v1/maptiles/aerial/256/{z}/{x}/{y}?apikey=${API_KEY}&lang=en`, { minZoom: 2, maxZoom: 19, attribution: '<a href="https://api.mapy.cz/copyright" target="_blank">&copy; Seznam.cz a.s. a další</a>', }),
+		Tourist: L.tileLayer(`https://api.mapy.cz/v1/maptiles/outdoor/256/{z}/{x}/{y}?apikey=${API_KEY}&lang=en`, { minZoom: 2, maxZoom: 19, attribution: '<a href="https://api.mapy.cz/copyright" target="_blank">&copy; Seznam.cz a.s. a další</a>', }),
+		OSM: L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { minZoom: 2, maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', }),
+		"OSM-Light": L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png", { minZoom: 2, maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attribution">CARTO</a>', }),
+	};
+	tileLayers.Basic.addTo(map);
+	L.control.layers(tileLayers, undefined, { position: "topleft", }).addTo(map);	// https://leafletjs.com/reference.html#control-layers
+
+
+	const layerG = L.layerGroup([]).addTo(map);
+
+	var myRenderer = L.canvas({ padding: 0.5 });
+
+	crags.forEach(p => {
+
+		const radius = Math.max(4, Math.log(p.ascents / 10) * 2);
+		const colR = p.category === 0;
+		const colB = p.category === 1;
+		const col1 = `#${colR === true && colB === true ? "808" : colR ? "22f" : colB ? "f00" : "fff"}9`;
+		const col2 = `#${colR === true && colB === true ? "808" : colR ? "22f" : colB ? "f00" : "fff"}4`;
+
+		//const divCircle = elem(`<div style="position: absolute; left: ${-radius / 2 - 2}px; top: ${-radius / 2 - 2}px; width: ${radius}px; height: ${radius}px; background-color: ${col1}; border-radius: 50%; border: 1px solid black;" />`);
+		//divCircle.title = `${p.name} (${p.ascents}, ${p.rMin} .. ${p.rMax})${p.area_name ? `\n${p.area_name}` : ""}`;
+
+		const divPopup = elem(`<div style="white-space: nowrap; font-size: 16px;"><a href="${p.url}" target="_blank">${p.name}</a> (${p.ascents}, ${p.rMin} .. ${p.rMax})<div style="font-size: 10px;">${p.area_name ?? ""}</div></div>`);
+		divPopup.appendChild(spark(p.routesHist, false));
+		divPopup.appendChild(elem('<br>'));
+		divPopup.appendChild(sparkYear(p.season));
+
+
+		//L.marker([p.latitude, p.longitude,], { icon: L.divIcon({ html: divCircle, iconSize: [0, 0,], }), })
+		//	.bindPopup(divPopup)
+		//	.addTo(map);
+		const circleMarker = L.circleMarker([p.latitude, p.longitude,], { renderer: myRenderer, radius: radius / 2, color: "black", fillColor: col1, weight: 1, fillOpacity: 1, })
+			.bindPopup(divPopup)
+			.addTo(map);
+		//circleMarker.getContainer().title = `${p.name} (${p.ascents}, ${p.rMin} .. ${p.rMax})${p.area_name ? `\n${p.area_name}` : ""}`;
+		//circleMarker.bindTooltip(`${p.name} (${p.ascents}, ${p.rMin} .. ${p.rMax})${p.area_name ? `\n${p.area_name}` : ""}`);
+		circleMarker.bindTooltip(elem(`<div>${p.name} (${p.ascents}, ${p.rMin} .. ${p.rMax})${p.area_name ? `<br />${p.area_name}` : ""}</div>`), { direction: "top", });
+
+		//p.znacka0 = divCircle;
+		p.znacka0 = circleMarker;
+		p.col1 = col1;
+		p.col2 = col2;
+
+
+		L.rectangle(rect(+p.latitude, +p.longitude, 0.0001, 0.0001 / Math.cos(p.latitude / 180 * Math.PI)), { color: "#f00c", fillColor: "#00f", weight: 1, interactive: false, })
+			.addTo(layerG)
+		function rect(lat, lon, rLat, rLon) {
+			return [
+				[lat - rLat, lon - rLon,],
+				[lat + rLat, lon + rLon,],
+			];
+		}
+	});
+
+
+	function aux() {
+		if (map.getZoom() < 15)
+			map.removeLayer(layerG);
+		else
+			map.addLayer(layerG);
+	}
+	aux();
+	map.on("zoomend", aux);
+
+	map.on("zoomend", processFilter);
+	map.on("moveend", processFilter);
+	map.on("move", processFilter);
+
+
+
+
+
+	const aGoogle = elem('<a target="_blank" style="position: absolute; right: 50px; top: -1px; z-index: 1000; padding: 0px 3px 2px; font-family: Arial; font-size: 13px; background-color: #fffa;">gm</a>');
+	const aP4n = elem('<a target="_blank" style="position: absolute; right: 16px; top: -1px; z-index: 1000; padding: 0px 3px 2px; font-family: Arial; font-size: 13px; background-color: #fffa;">p4n</a>');
+	document.body.appendChild(aGoogle);
+	document.body.appendChild(aP4n);
+
+	const divMenu = elem('<div style="position: absolute; right: 10px; top: 10px; z-index: 1000; padding: 5px; /*background: #fff4;*/ font-family: Arial;" />');
+	const input = elem('<input style="width: 100px;" />');
+	const selectFrom = elem('<select style="margin-left: 5px" />');
+	const selectTo = elem('<select style="margin-left: 5px" />');
+	selectFrom.appendChild(elem('<option value="-Infinity">from</option>'));
+	selectTo.appendChild(elem('<option value="Infinity">to</option>'));
+	gradeMap2.forEach((g, i) => {
+		selectFrom.appendChild(elem(`<option value="${i}">${g}</option>`));
+		selectTo.appendChild(elem(`<option value="${i}">${g}</option>`));
+	});
+	const list = elem('<div style="position: absolute; top: 30px; left: 5px; right: 5px; max-height: calc(100vh - 50px); overflow: hidden auto; font-size: 13px;" />');
+
+	function createRow(p) {
+		const ret = elem(`<div class="hoverWhite"><a href="${p.url}" target="_blank">${p.name}</a><!-- (${p.ascents})--></div>`);
+		//ret.onmouseenter = () => { p.znacka0.style.boxShadow = "0 0 0 2pt black"; };
+		//ret.onmouseleave = () => { p.znacka0.style.boxShadow = ""; };
+		ret.onmouseenter = () => { p.znacka0.setStyle({ weight: 4, }); };
+		ret.onmouseleave = () => { p.znacka0.setStyle({ weight: 1, }); };
+		return ret;
+	}
+	function norm(s) { return (s ?? "??").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace("ß", "ss").toLowerCase(); }
+	const crags2 = [...crags].reverse().map(p => ({ ...p, row: createRow(p), normName: norm(p.name), normArea: norm(p.area_name), sparkCreated: false, }));
+	crags2.forEach(p => list.appendChild(p.row));
+
+	divMenu.appendChild(input);
+	divMenu.appendChild(selectFrom);
+	divMenu.appendChild(selectTo);
+	divMenu.appendChild(list);
+	document.body.appendChild(divMenu);
+	function processFilter() {
+		const vp = map.getBounds();
+		const selectFromValue = +selectFrom.value;
+		const selectToValue = +selectTo.value;
+		const normInput = norm(input.value);
+		let matchCount = 0;
+
+		crags2.forEach(p => {
+			const match = (p.normName.includes(normInput) || p.normArea.includes(normInput))
+				&& p.routesHist.some((count, i) => count > 0 && i >= selectFromValue && i <= selectToValue);
+			//const onScreen = (vp.lbx < vp.rtx ? p.longitude > vp.lbx && p.longitude < vp.rtx
+			//	: p.longitude > vp.lbx || p.longitude < vp.rtx)
+			//	&& p.latitude > vp.lby && p.latitude < vp.rty
+			//	|| m.getZoom() < 3;
+			const onScreen = vp.contains([p.latitude, p.longitude,]);
+			//p.znacka0.style.backgroundColor = match ? p.col1 : p.col2;
+			//p.znacka0.style.zIndex = match ? "1" : "";
+			//p.znacka0.style.border = match ? "1px solid black" : "1px solid #888";
+			p.znacka0.setStyle({ fillColor: match ? p.col1 : p.col2, /*zIndex: match ? "1" : "",*/ color: match ? "black" : "#888", });
+			p.row.style.display = match && onScreen ? "block" : "none";
+			if (match && onScreen) {
+				matchCount++;
+				if (matchCount < 100 && !p.sparkCreated) {
+					p.row.appendChild(spark(p.routesHist, true, "position: absolute; right: 0;"));
+					//p.row.appendChild(sparkYear(p.season, "position: absolute; right: 0;"));
+					p.sparkCreated = true;
+				}
+			}
+		});
+
+		const { lat, lng, } = map.getCenter();
+		const z = map.getZoom();
+		aGoogle.href = `http://maps.google.com/?ll=${lat},${lng}&z=${z}&t=k`;	// https://stackoverflow.com/questions/6018060/form-google-maps-url-that-searches-for-a-specific-places-near-specific-coordinat?noredirect=1&lq=1
+		aP4n.href = `https://park4night.com/en/search?lat=${lat}&lng=${lng}&z=${z}`;
+		divMapyCzLogo.firstChild.href = `https://mapy.cz/zakladni?y=${lat}&x=${lng}&z=${z}`;
+	}
+	input.oninput = processFilter;
+	selectFrom.onchange = processFilter;
+	selectTo.onchange = processFilter;
+	processFilter();
+
+
+
+
+</script>
+</body>
+</html>
